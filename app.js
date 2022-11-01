@@ -1,7 +1,8 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const mongoose = require("mongoose")
+const mongoose = require("mongoose");
 const app = express();
+const _ = require("lodash");
 
 //const date = require(__dirname + "/modules/date.js")
 
@@ -18,6 +19,7 @@ const itemsSchema = new mongoose.Schema({
 
 const Item = mongoose.model("Item", itemsSchema)
 
+// Default Items(Tasks)
 const item1 = new Item ({
   name: "Gym"
 })
@@ -75,7 +77,9 @@ app.use(express.static("public"))
 
  });
 app.get("/:customListName", function(req, res){
-  const customListName = req.params.customListName;
+  const customListName = _.capitalize(req.params.customListName);
+
+
   List.findOne({name:customListName}, function(err, results){
     if (!err){
       if(!results){
@@ -102,11 +106,21 @@ app.get("/:customListName", function(req, res){
  app.post("/", function(req, res){
 
    const itemName = req.body.newItem ;
+   const listName = req.body.list;
    const item = new Item ({
      name: itemName
    })
-   item.save()
-   res.redirect("/")
+
+   if (listName === "Today") {
+     item.save();
+     res.redirect("/")
+   } else {
+     List.findOne({name: listName}, function(err, foundList){
+       foundList.items.push(item);
+       foundList.save();
+       res.redirect("/" + listName)
+     })
+   }
 
  //   if (req.body.list.newItem === "Work"){
  //     workItems.push(item);
@@ -120,14 +134,26 @@ app.get("/:customListName", function(req, res){
 
 app.post("/delete", function(req, res){
   const checkedItemId = req.body.checkbox;
-  Item.findByIdAndRemove({_id:checkedItemId}, function(err){
-    if (err){
-      console.log(err)
-    } else {
-      console.log("Successfully deleted task.")
-    }
-    res.redirect("/")
-  })
+  const listName = req.body.listName;
+
+  if (listName === "Today"){
+    Item.findByIdAndRemove({_id:checkedItemId}, function(err){
+      if (err){
+        console.log(err)
+      } else {
+        console.log("Successfully deleted task.")
+      }
+      res.redirect("/" + listName)
+    })
+  } else {
+      List.findOneAndUpdate({name: listName}, {$pull: {items:{_id: checkedItemId}}}, function(err, foundList){
+        if (!err){
+          res.redirect("/" + listName)
+        }
+      })
+  }
+
+
 })
 
  app.get("/work", function(req, res){
